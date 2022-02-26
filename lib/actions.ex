@@ -7,7 +7,7 @@ defmodule EctoShorts.Actions do
   @type filter_params :: Keyword.t | map
   @type aggregate_options :: :avg | :count | :max | :min | :sum
   @type schema_list :: list(Ecto.Schema.t) | []
-  @type schema_res :: {:ok, Ecto.Schema.t} | {:error, String.t}
+  @type schema_res :: {:ok, Ecto.Schema.t} | {:error, any}
 
   alias EctoShorts.{CommonFilters, Actions.Error, Config}
 
@@ -216,6 +216,28 @@ defmodule EctoShorts.Actions do
     find_params = Map.drop(params, schema.__schema__(:associations))
 
     case find(schema, find_params, opts) do
+      {:ok, transaction} -> update(schema, transaction, update_params, opts)
+      e -> e
+    end
+  end
+
+
+  @doc """
+  Finds a schema by params and updates it or creates with results of
+  params/update_params merged. Can also accept a keyword options list.
+
+  ## Options
+    * `:repo` - A module that uses the Ecto.Repo Module.
+    * `:replica` - If you don't want to perform any reads against your Primary, you can specify a replica to read from.
+
+  ## Examples
+      iex> {:ok, schema} = EctoSchemas.Actions.find_and_update_or_create(EctoSchemas.Accounts.User, %{email: "some_email"}, %{name: "great name"})
+
+      iex> {:ok, schema} = EctoSchemas.Actions.find_and_update_or_create(EctoSchemas.Accounts.User, %{email: "some_email"}, %{name: "great name}, repo: MyApp.MyRepoModule.Repo, replica: MyApp.MyRepoModule.Repo.replica())
+  """
+  @spec find_and_update_or_create(Ecto.Schema.t(), map, map, opts :: Keyword.t) :: {:ok, Ecto.Schema.t()} | {:error, Ecto.Changeset.t()}
+  def find_and_update_or_create(schema, params, update_params, opts \\ []) do
+    case find(schema, params, opts) do
       {:ok, transaction} -> update(schema, transaction, update_params, opts)
       {:error, %{code: :not_found}} -> create(schema, Map.merge(params, update_params), opts)
       e -> e
